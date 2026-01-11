@@ -1,0 +1,44 @@
+services:
+  llama-server:
+    # Official AMD ROCm-enabled image
+    image: rocm/llama.cpp:server
+    container_name: llama-server
+    volumes:
+      - ./models:/models
+    # Use -ngl to offload. 
+    # HSA_OVERRIDE_GFX_VERSION might be needed for new iGPUs like the 880M.
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=11.0.0
+    command: >
+      --models-dir /models 
+      --host 0.0.0.0 
+      --port 8080 
+      -c 4096 
+      -ngl 33 
+      --models-max 1
+    # AMD requires direct device access
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    ipc: host
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    environment:
+      - 'OPENAI_API_BASE_URL=http://llama-server:8080/v1'
+    volumes:
+      - open-webui:/app/backend/data
+    depends_on:
+      - llama-server
+
+volumes:
+  open-webui:
